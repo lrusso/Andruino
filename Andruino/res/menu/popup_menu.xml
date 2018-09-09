@@ -1,0 +1,8 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+	<item android:id="@+id/conectarse" android:title="@string/textConnect"/>  
+	<item android:id="@+id/desconectarse" android:title="@string/textDisconnect"/>  
+	<item android:id="@+id/configurarbits" android:title="@string/textBaudRate"/>  
+	<item android:id="@+id/example" android:title="@string/textSketch"/>
+	<item android:id="@+id/politica" android:title="@string/textPrivacy"/>  
+	<item android:id="@+id/acercade" android:title="@string/textAbout"/>  
+</menu>  
