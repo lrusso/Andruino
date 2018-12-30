@@ -130,13 +130,6 @@ public class Main extends Activity
 				}
 			});
 				
-		/*
-        lineFeedCode = Util.getLineFeedCd(
-                pref.getString(getString(R.string.line_feed_code_send_key),
-                        getString(R.string.line_feed_code_cr_lf_value)),
-                this);
-		 */
-        
         mHandler = new MyHandler(this);
 
         IntentFilter filter = new IntentFilter();
