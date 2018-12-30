@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="ar.com.lrusso.andruino"
-    android:versionCode="19"
-    android:versionName="1.9.4.5" >
+    android:versionCode="20"
+    android:versionName="1.9.4.6" >
 
     <uses-sdk android:minSdkVersion="14" android:targetSdkVersion="26" />
     
-    <uses-feature android:name="android.hardware.usb.host" />
-    
+    <uses-feature android:name="android.hardware.usb.host" android:required="true"/>
+        
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
@@ -22,10 +22,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <intent-filter>
+			<intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
-            </intent-filter>
-            <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/device_filter" />
-        </activity>
+			</intent-filter>
+ 			<meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/device_filter" />
+		</activity>
+        <service android:name=".AppService" android:enabled="true" />
     </application>
 </manifest>

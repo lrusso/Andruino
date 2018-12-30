@@ -15,16 +15,18 @@ public final class R {
         public static final int ic_launcher=0x7f020001;
     }
     public static final class id {
-        public static final int acercade=0x7f07000d;
+        public static final int about=0x7f07000f;
         public static final int action_settings=0x7f070007;
-        public static final int conectarse=0x7f070008;
-        public static final int configurarbits=0x7f07000a;
-        public static final int desconectarse=0x7f070009;
-        public static final int example=0x7f07000b;
+        public static final int clear=0x7f07000a;
+        public static final int configbaudrate=0x7f07000c;
+        public static final int connect=0x7f070008;
+        public static final int copy=0x7f07000b;
+        public static final int disconnect=0x7f070009;
+        public static final int example=0x7f07000d;
         public static final int linearLayout1=0x7f070000;
         public static final int linearLayout2=0x7f070003;
         public static final int linearLayout3=0x7f070004;
-        public static final int politica=0x7f07000c;
+        public static final int privacy=0x7f07000e;
         public static final int receiverScrollbar=0x7f070001;
         public static final int receiverTextbox=0x7f070002;
         public static final int senderButton=0x7f070006;
@@ -43,23 +45,29 @@ public final class R {
         public static final int app_name=0x7f050000;
         public static final int hello_world=0x7f050001;
         public static final int menu_settings=0x7f050002;
-        public static final int textAbout=0x7f05000d;
-        public static final int textAboutMessage=0x7f05000e;
-        public static final int textBaudRate=0x7f05000b;
-        public static final int textCantConnect=0x7f05000a;
+        public static final int textAbout=0x7f05000f;
+        public static final int textAboutMessage=0x7f050010;
+        public static final int textBaudRate=0x7f05000d;
+        public static final int textCantConnect=0x7f05000c;
+        public static final int textClear=0x7f050015;
         public static final int textConnect=0x7f050005;
         public static final int textConnected=0x7f050006;
-        public static final int textDisconnect=0x7f050007;
-        public static final int textDisconnectBoard=0x7f050009;
-        public static final int textDisconnected=0x7f050008;
-        public static final int textMessage=0x7f05000f;
+        public static final int textConnectedToast=0x7f050007;
+        public static final int textCopy=0x7f050016;
+        public static final int textCopyError=0x7f050018;
+        public static final int textCopyOK=0x7f050017;
+        public static final int textDisconnect=0x7f050008;
+        public static final int textDisconnectBoard=0x7f05000b;
+        public static final int textDisconnected=0x7f050009;
+        public static final int textDisconnectedToast=0x7f05000a;
+        public static final int textMessage=0x7f050011;
         public static final int textNoConnection=0x7f050004;
-        public static final int textOk=0x7f050010;
-        public static final int textPrivacy=0x7f05000c;
-        public static final int textPrivacyText=0x7f050013;
+        public static final int textOk=0x7f050012;
+        public static final int textPrivacy=0x7f05000e;
+        public static final int textPrivacyText=0x7f050019;
         public static final int textSend=0x7f050003;
-        public static final int textSketch=0x7f050011;
-        public static final int textSketchExample=0x7f050012;
+        public static final int textSketch=0x7f050013;
+        public static final int textSketchExample=0x7f050014;
     }
     public static final class xml {
         public static final int device_filter=0x7f040000;

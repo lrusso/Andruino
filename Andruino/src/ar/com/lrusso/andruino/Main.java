@@ -1,21 +1,21 @@
 package ar.com.lrusso.andruino;
 
-import ar.com.lrusso.andruino.FTDriver;
-
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.SharedPreferences;
+import android.content.ServiceConnection;
 import android.graphics.Color;
-import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.os.Handler;
-import android.preference.PreferenceManager;
+import android.os.IBinder;
+import android.os.Message;
 import android.text.Html;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -24,7 +24,9 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.View.OnKeyListener;
+import android.view.View.OnClickListener;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.PopupMenu;
@@ -37,128 +39,133 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.ref.WeakReference;
 import java.util.Calendar;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Main extends Activity
 	{
-	private static final boolean USE_WRITE_BUTTON_FOR_DEBUG = false;
-	private static final int TEXT_MAX_SIZE = 8192;
-	private static final int REQUEST_PREFERENCE         = 0;
-	private static final int REQUEST_WORD_LIST_ACTIVITY = 1;
-	private static final int DISP_CHAR  = 0;
-	private static final int DISP_DEC   = 1;
-	private static final int DISP_HEX   = 2;
-	private static final int LINEFEED_CODE_CR   = 0;
-	private static final int LINEFEED_CODE_CRLF = 1;
-	private static final int LINEFEED_CODE_LF   = 2;
-	private static final String BUNDLEKEY_LOADTEXTVIEW = "bundlekey.LoadTextView";
-	
-	private Menu mainMenu;	
+    private AppService usbService;
+    private MyHandler mHandler;
 
-	FTDriver mSerial;
-	private ScrollView mSvText;
-	private EditText mTvSerial;
-	private StringBuilder mText = new StringBuilder();
-	private boolean mStop = false;
-	boolean lastDataIs0x0D = false;
-	Handler mHandler = new Handler();
-	private Button btWrite;
-	private EditText etWrite;
-	private int mDisplayType = DISP_CHAR;
-	private int mReadLinefeedCode = LINEFEED_CODE_LF;
-	private int mWriteLinefeedCode = LINEFEED_CODE_LF;
-	private int mBaudrate = FTDriver.BAUD9600;
-	private int mDataBits = FTDriver.FTDI_SET_DATA_BITS_8;
-	private int mParity = FTDriver.FTDI_SET_DATA_PARITY_NONE;
-	private int mStopBits = FTDriver.FTDI_SET_DATA_STOP_BITS_1;
-	private int mFlowControl = FTDriver.FTDI_SET_FLOW_CTRL_NONE;
-	private int mBreak = FTDriver.FTDI_SET_NOBREAK;
-	private boolean mRunningMainLoop = false;
-	private static final String ACTION_USB_PERMISSION = "ar.com.lrusso.andruino.USB_PERMISSION";
-	private final static String BR = System.getProperty("line.separator");
-	private static boolean connected = false;
+	private Context 						context;
+	private Activity						activity;
+
+	private Button							senderButton;
+	private EditText						senderTextbox;
+
+	public static EditText					receiverTextbox;
+	public static ScrollView 				receiverScrollbar;
+	
+	private boolean connected = false;
 
 	@Override public void onCreate(Bundle savedInstanceState)
 		{
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
-		mSvText = (ScrollView) findViewById(R.id.receiverScrollbar);
-		mTvSerial = (EditText) findViewById(R.id.receiverTextbox);
-		btWrite = (Button) findViewById(R.id.senderButton);
-		btWrite.setTextColor(Color.LTGRAY);
-		btWrite.setEnabled(false);
-		etWrite = (EditText) findViewById(R.id.senderTextbox);
-		etWrite.setEnabled(false);
-		btWrite.setText(R.string.textSend);
-		verificarBaudRate();
-		mSerial = new FTDriver((UsbManager) getSystemService(Context.USB_SERVICE));
-		IntentFilter filter = new IntentFilter();
-		filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
-		filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
-		registerReceiver(mUsbReceiver, filter);
-		mBaudrate = loadDefaultBaudrate();
-		PendingIntent permissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
-		mSerial.setPermissionIntent(permissionIntent);
-		if (mSerial.begin(mBaudrate))
-			{
-			loadDefaultSettingValues();
-			mainloop();
-			}
-			else
-			{
-			messageStatus(getResources().getString(R.string.textNoConnection));
-			}
-		etWrite.setOnKeyListener(new OnKeyListener()
-			{
-			@Override public boolean onKey(View v, int keyCode, KeyEvent event)
-				{
-				if (event.getAction() == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_ENTER)
+		
+		senderButton = (Button) findViewById(R.id.senderButton);
+		senderTextbox = (EditText) findViewById(R.id.senderTextbox);
+
+		receiverTextbox = (EditText) findViewById(R.id.receiverTextbox);
+		receiverScrollbar = (ScrollView) findViewById(R.id.receiverScrollbar);
+
+		context = this;
+		activity = this;
+
+		senderButton.setTextColor(Color.LTGRAY);
+		senderButton.setEnabled(false);
+		senderTextbox.setText("");
+		senderTextbox.setEnabled(false);
+
+		setTitle(getResources().getString(R.string.app_name) + " - " + getResources().getString(R.string.textDisconnected));
+
+		senderButton.setOnClickListener(new OnClickListener()
+	 		{
+			public void onClick(View v)
+	    		{
+				try
 					{
-					writeDataToSerial();
-					return true;
-					}
-				return false;
-				}});
-		if (!USE_WRITE_BUTTON_FOR_DEBUG)
-			{
-			btWrite.setOnClickListener(new View.OnClickListener()
-				{
-				@Override public void onClick(View v)
-					{
-					writeDataToSerial();
-					}
-				});
-			}
-			else
-			{
-			btWrite.setOnClickListener(new View.OnClickListener()
-				{
-				@Override public void onClick(View v)
-					{
-					String strWrite = "";
-					for (int i = 0; i < 3000; ++i)
-						{
-						strWrite = strWrite + " " + Integer.toString(i);
+					if (senderTextbox.length()>0)
+						{	
+						String message = senderTextbox.getText().toString();
+					    if (!message.isEmpty())
+					    	{
+					    	sendMessage(message);
+					    	senderTextbox.setText("");
+					    	}
 						}
-					mSerial.write(strWrite.getBytes(), strWrite.length());
 					}
-				});
-			}
+					catch(Exception e)
+					{
+					}
+	    		}
+	 		});
+		
+		senderTextbox.setOnEditorActionListener(new EditText.OnEditorActionListener()
+			{
+			@Override public boolean onEditorAction(TextView arg0, int arg1, KeyEvent arg2)
+				{
+		        if (arg1 == EditorInfo.IME_ACTION_SEND)
+		        	{
+					try
+						{
+						if (senderTextbox.length()>0)
+							{	
+							String message = senderTextbox.getText().toString();
+							if (!message.isEmpty())
+					    		{
+			                    sendMessage(message);
+								senderTextbox.setText("");
+					    		}
+							}
+						}
+						catch(Exception e)
+						{
+						}
+		            return true;
+		        	}
+		        return false;
+				}
+			});
+				
+		/*
+        lineFeedCode = Util.getLineFeedCd(
+                pref.getString(getString(R.string.line_feed_code_send_key),
+                        getString(R.string.line_feed_code_cr_lf_value)),
+                this);
+		 */
+        
+        mHandler = new MyHandler(this);
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(AppService.ACTION_USB_PERMISSION_GRANTED);
+        filter.addAction(AppService.ACTION_NO_USB);
+        filter.addAction(AppService.ACTION_USB_DISCONNECTED);
+        filter.addAction(AppService.ACTION_USB_NOT_SUPPORTED);
+        filter.addAction(AppService.ACTION_USB_PERMISSION_NOT_GRANTED);
+        registerReceiver(mUsbReceiver, filter);
+
+        startService(AppService.class, usbConnection);
 		}
 	
-	@Override public void onDestroy()
-		{
-		mSerial.end();
-		mStop = true;
-		unregisterReceiver(mUsbReceiver);
-		super.onDestroy();
-		}
+    @Override public void onDestroy()
+    	{
+    	if(connected==true)
+    		{
+    		clickInDisconnect();
+    		}
+    	unregisterReceiver(mUsbReceiver);
+    	unbindService(usbConnection);
+
+    	super.onDestroy();
+    	}
 	
 	@Override public boolean onCreateOptionsMenu(Menu menu)
 		{
 	    MenuInflater inflater = getMenuInflater();
 	    inflater.inflate(R.menu.main_activity_actions, menu);
-	    mainMenu=menu;
 		return super.onCreateOptionsMenu(menu);
 		}
 	
@@ -175,11 +182,11 @@ public class Main extends Activity
 
     		if (connected==true)
     			{
-        	    popupMenu2.findItem(R.id.conectarse).setVisible(false);
+        	    popupMenu2.findItem(R.id.connect).setVisible(false);
     			}
     			else
     			{
-    			popupMenu2.findItem(R.id.desconectarse).setVisible(false);
+    			popupMenu2.findItem(R.id.disconnect).setVisible(false);
     			}
     		
     		popupMenu.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener()
@@ -187,17 +194,25 @@ public class Main extends Activity
     			public boolean onMenuItemClick(MenuItem item)
             		{
     				if (item.getTitle().toString().contains(getResources().getString(R.string.textConnect)))
-    					{
-    					openUsbSerial();
-    					}
+						{
+    					clickInConnect();
+						}
     				else if (item.getTitle().toString().contains(getResources().getString(R.string.textDisconnect)))
     					{
-    					closeUsbSerial();
+    					clickInDisconnect();
     					}
     				else if (item.getTitle().toString().contains(getResources().getString(R.string.textBaudRate)))
     					{
     					clickInBaudRate();
     					}
+					else if (item.getTitle().toString().contains(getResources().getString(R.string.textClear)))
+						{
+						clickInClearText();
+						}
+					else if (item.getTitle().toString().contains(getResources().getString(R.string.textCopy)))
+						{
+						clickInCopyText();
+						}
 					else if (item.getTitle().toString().contains(getResources().getString(R.string.textSketch)))
 						{
 						clickInSketch();
@@ -218,150 +233,6 @@ public class Main extends Activity
     		
     		default:
     		return super.onOptionsItemSelected(item);
-    		}
-		}
-	
-	@Override protected void onActivityResult(int requestCode, int resultCode, Intent data)
-		{
-		super.onActivityResult(requestCode, resultCode, data);
-		if (requestCode == REQUEST_WORD_LIST_ACTIVITY)
-			{
-			if(resultCode == RESULT_OK)
-				{
-				try
-					{
-					String strWord = data.getStringExtra("word");
-					etWrite.setText(strWord);
-					etWrite.setSelection(etWrite.getText().length());
-					}
-					catch(Exception e)
-					{
-					}
-				}
-			}
-			else if (requestCode == REQUEST_PREFERENCE)
-				{
-				SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(this);
-				String res = pref.getString("display_list", Integer.toString(DISP_CHAR));
-				mDisplayType = Integer.valueOf(res);
-				res = pref.getString("fontsize_list", Integer.toString(12));
-				res = pref.getString("readlinefeedcode_list", Integer.toString(LINEFEED_CODE_CRLF));
-				mReadLinefeedCode = Integer.valueOf(res);
-				res = pref.getString("databits_list", Integer.toString(FTDriver.FTDI_SET_DATA_BITS_8));
-				if (mDataBits != Integer.valueOf(res))
-					{
-					mDataBits = Integer.valueOf(res);
-					mSerial.setSerialPropertyDataBit(mDataBits, FTDriver.CH_A);
-					mSerial.setSerialPropertyToChip(FTDriver.CH_A);
-					}
-				int intRes;
-				res = pref.getString("parity_list",Integer.toString(FTDriver.FTDI_SET_DATA_PARITY_NONE));
-				intRes = Integer.valueOf(res) << 8;
-				if (mParity != intRes)
-					{
-					mParity = intRes;
-					mSerial.setSerialPropertyParity(mParity, FTDriver.CH_A);
-					mSerial.setSerialPropertyToChip(FTDriver.CH_A);
-					}
-				res = pref.getString("stopbits_list",Integer.toString(FTDriver.FTDI_SET_DATA_STOP_BITS_1));
-				intRes = Integer.valueOf(res) << 11;
-				if (mStopBits != intRes)
-					{
-					mStopBits = intRes;
-					mSerial.setSerialPropertyStopBits(mStopBits, FTDriver.CH_A);
-					mSerial.setSerialPropertyToChip(FTDriver.CH_A);
-					}
-				res = pref.getString("flowcontrol_list",Integer.toString(FTDriver.FTDI_SET_FLOW_CTRL_NONE));
-				intRes = Integer.valueOf(res) << 8;
-				if (mFlowControl != intRes)
-					{
-					mFlowControl = intRes;
-					mSerial.setFlowControl(FTDriver.CH_A, mFlowControl);
-					}
-				res = pref.getString("break_list", Integer.toString(FTDriver.FTDI_SET_NOBREAK));
-				intRes = Integer.valueOf(res) << 14;
-				if (mBreak != intRes)
-					{
-					mBreak = intRes;
-					mSerial.setSerialPropertyBreak(mBreak, FTDriver.CH_A);
-					mSerial.setSerialPropertyToChip(FTDriver.CH_A);
-					}
-				res = pref.getString("baudrate_list", Integer.toString(FTDriver.BAUD9600));
-				if (mBaudrate != Integer.valueOf(res))
-					{
-					mBaudrate = Integer.valueOf(res);
-					mSerial.setBaudrate(mBaudrate, 0);
-					}
-				}
-		}
-	
-	@Override protected void onSaveInstanceState(Bundle outState)
-		{
-		super.onSaveInstanceState(outState);
-		outState.putString(BUNDLEKEY_LOADTEXTVIEW, mTvSerial.getText().toString());
-		}
-	
-	@Override protected void onRestoreInstanceState(Bundle savedInstanceState)
-		{
-		super.onRestoreInstanceState(savedInstanceState);
-		mTvSerial.setText(savedInstanceState.getString(BUNDLEKEY_LOADTEXTVIEW));
-		}
-	
-	@Override public boolean onKeyUp(int keyCode, KeyEvent event)
-		{
-		try
-			{
-			if (keyCode == KeyEvent.KEYCODE_MENU)
-				{
-				if (mainMenu!=null)
-            		{
-					mainMenu.performIdentifierAction(R.id.action_settings, 0);
-            		}				
-				}
-			}
-			catch(NullPointerException e)
-			{
-			}
-		return super.onKeyUp(keyCode, event);
-		}
-	
-	private void writeDataToSerial()
-		{
-		String strWrite = etWrite.getText().toString();
-		strWrite = changeLinefeedcode(strWrite);
-		mSerial.write(strWrite.getBytes(), strWrite.length()-1);
-		etWrite.setText("");
-		}
-
-    public void verificarBaudRate()
-		{
-    	String value = readFile("baudrate.cfg");
-    	if (value=="_")
-    		{
-    		writeFile("baudrate.cfg","9600");
-    		mBaudrate = FTDriver.BAUD9600;
-    		}
-    	if (value.contains("9600"))
-    		{
-        	mBaudrate = FTDriver.BAUD9600;
-    		}
-    		else
-    		{
-    		if (value.contains("57600"))
-    			{
-            	mBaudrate = FTDriver.BAUD57600;
-    			}
-    			else
-    			{
-   	    		if (value.contains("115200"))
-        			{
-   	            	mBaudrate = FTDriver.BAUD115200;
-        			}
-   	    			else
-   	    			{
- 	    	        mBaudrate = FTDriver.BAUD9600;
-   	    			}
-    			}
     		}
 		}
     
@@ -397,27 +268,77 @@ public class Main extends Activity
 			{
 			}
     	}
-	
-	private String changeLinefeedcode(String str)
+
+	private void clickInConnect()
 		{
-		str = str.replace("\\r", "\r");
-		str = str.replace("\\n", "\n");
-		switch (mWriteLinefeedCode)
+		try
 			{
-			case LINEFEED_CODE_LF:
-			str = str + "\n";
-			break;
-			
-			default:
+			usbService.setHandler(mHandler);
 			}
-		return str;
-		}
-	
-	public void setWriteTextString(String str)
-		{
-		etWrite.setText(str);
+			catch(Exception e)
+			{
+			}
+		try
+			{
+			Toast.makeText(activity, R.string.textConnectedToast, Toast.LENGTH_SHORT).show();
+			setTitle(context.getResources().getString(R.string.app_name) + " - " + context.getResources().getString(R.string.textConnected));
+			senderButton.setTextColor(Color.BLACK);
+			senderButton.setEnabled(true);
+			senderTextbox.setText("");
+			senderTextbox.setEnabled(true);
+			senderTextbox.requestFocus();
+			}
+			catch(Exception e)
+			{
+			}
+		try
+			{
+			InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+			imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY);
+			}
+			catch(Exception e)
+			{
+			}
+		connected = true;
 		}
 
+	private void clickInDisconnect()
+		{
+		try
+			{
+			usbService.setHandler(null);
+			}
+			catch(Exception e)
+			{
+			}
+		try
+			{
+			Toast.makeText(context, context.getResources().getString(R.string.textDisconnectedToast), Toast.LENGTH_LONG).show();
+			setTitle(context.getResources().getString(R.string.app_name) + " - " + context.getResources().getString(R.string.textDisconnected));
+			senderButton.setTextColor(Color.LTGRAY);
+			senderButton.setEnabled(false);
+			senderTextbox.setText("");
+			senderTextbox.setEnabled(false);
+			}
+			catch(Exception e)
+			{
+			}
+		try
+			{
+			InputMethodManager imm = (InputMethodManager) activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
+			View view = activity.getCurrentFocus();
+			if (view == null)
+				{
+				view = new View(activity);
+				}
+			imm.hideSoftInputFromWindow(view.getWindowToken(), 0);			
+			}
+			catch(Exception e)
+			{
+			}
+		connected = false;
+		}
+    
 	public void clickInBaudRate()
 		{
 		if (connected==true)
@@ -432,44 +353,39 @@ public class Main extends Activity
 	    	final AlertDialog.Builder singlechoicedialog = new AlertDialog.Builder(this);
 	    	final CharSequence[] Report_items = {speed9600, speed57600, speed115200};
 	    	singlechoicedialog.setTitle(getResources().getString(R.string.textBaudRate));
-	    	int seleccionbaudrate=0;
+	    	int selectedbaudrate=0;
 
 	    	String value = readFile("baudrate.cfg");
 	    	if (value=="_")
 	    		{
 	    		writeFile("baudrate.cfg","9600");
-	    		mBaudrate = FTDriver.BAUD9600;
-	    		seleccionbaudrate=0;
+	    		selectedbaudrate=0;
 	    		}
     		
 	    	if (value.contains("9600"))
 	    		{
-	        	mBaudrate = FTDriver.BAUD9600;
-	    		seleccionbaudrate=0;
+	    		selectedbaudrate=0;
 	    		}
 	    		else
 	    		{
 	    		if (value.contains("57600"))
 	    			{
-		    		seleccionbaudrate=1;
-	            	mBaudrate = FTDriver.BAUD57600;
+		    		selectedbaudrate=1;
 	    			}
 	    			else
 	    			{
 	   	    		if (value.contains("115200"))
 	        			{
-			    		seleccionbaudrate=2;
-	   	            	mBaudrate = FTDriver.BAUD115200;
+			    		selectedbaudrate=2;
 	        			}
 	   	    			else
 	   	    			{
-				    	seleccionbaudrate=0;
-	 	    	        mBaudrate = FTDriver.BAUD9600;
+				    	selectedbaudrate=0;
 	   	    			}
 	    			}
 	    		}
 
-	    	singlechoicedialog.setSingleChoiceItems(Report_items, seleccionbaudrate,new DialogInterface.OnClickListener()
+	    	singlechoicedialog.setSingleChoiceItems(Report_items, selectedbaudrate,new DialogInterface.OnClickListener()
 	    		{
 	    		public void onClick(DialogInterface dialog, int item)
 	    			{
@@ -477,23 +393,56 @@ public class Main extends Activity
 	    			if (value==speed9600)
 	    				{
 	    	    		writeFile("baudrate.cfg","9600");
-	    	    		mBaudrate = FTDriver.BAUD9600;
 	    				}
 	    			if (value==speed57600)
 	    				{
 	    	    		writeFile("baudrate.cfg","57600");
-	    	    		mBaudrate = FTDriver.BAUD57600;
 	    				}
 	    			if (value==speed115200)
 	    				{
 	    	    		writeFile("baudrate.cfg","115200");
-	    	    		mBaudrate = FTDriver.BAUD115200;
 	    				}
+	    			
+	    	        Intent intent = new Intent(usbService.ACTION_SERIAL_CONFIG_CHANGED);
+	    	        sendBroadcast(intent);
+	    	        
 	    			dialog.cancel();
 	    			}
 	    		});
 	    	AlertDialog alert_dialog = singlechoicedialog.create();
 	    	alert_dialog.show();
+			}
+		}
+	
+	private void clickInClearText()
+		{
+		try
+			{
+			receiverTextbox.setText("");
+			}
+			catch(Exception e)
+			{
+			}
+		}
+
+	private void clickInCopyText()
+		{
+		try
+			{
+			if (receiverTextbox.getText().toString().length()>0)
+				{
+				ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE); 
+				ClipData clip = ClipData.newPlainText("Data",receiverTextbox.getText().toString());
+				clipboard.setPrimaryClip(clip);
+				Toast.makeText(this,getResources().getString(R.string.textCopyOK),Toast.LENGTH_SHORT).show();
+				}
+				else
+				{
+				Toast.makeText(this,getResources().getString(R.string.textCopyError),Toast.LENGTH_SHORT).show();
+				}
+			}
+			catch(Exception e)
+			{
 			}
 		}
 	
@@ -573,315 +522,107 @@ public class Main extends Activity
 			}).show();
 		}
 	
-	private void mainloop()
-		{
-		mStop = false;
-		mRunningMainLoop = true;
-		btWrite.setTextColor(Color.BLACK);
-		btWrite.setEnabled(true);
-		etWrite.setText("");
-		etWrite.setEnabled(true);
-		connected=true;
-		messageStatus(getResources().getString(R.string.textConnected));
-		new Thread(mLoop).start();
-		}
 	
-	private Runnable mLoop = new Runnable()
-		{
-		@Override public void run()
-			{
-			int len;
-			byte[] rbuf = new byte[4096];
-			for (;;)
-				{
-				len = mSerial.read(rbuf);
-				rbuf[len] = 0;
-				if (len > 0)
-					{
-					switch (mDisplayType)
-						{
-						case DISP_CHAR:
-						setSerialDataToTextView(mDisplayType, rbuf, len, "", "");
-						break;
-						
-						case DISP_DEC:
-						setSerialDataToTextView(mDisplayType, rbuf, len, "013", "010");
-						break;
-						
-						case DISP_HEX:
-						setSerialDataToTextView(mDisplayType, rbuf, len, "0d", "0a");
-						break;
-						}
-					mHandler.post(new Runnable()
-						{
-						public void run()
-							{
-							if (mTvSerial.length() > TEXT_MAX_SIZE)
-								{
-								StringBuilder sb = new StringBuilder();
-								sb.append(mTvSerial.getText());
-								sb.delete(0, TEXT_MAX_SIZE / 2);
-								mTvSerial.setText(sb);
-								}
-							mTvSerial.append(mText);
-							mText.setLength(0);
-							mSvText.fullScroll(ScrollView.FOCUS_DOWN);
-							}
-						});
-					}
-				try
-					{
-					Thread.sleep(50);
-					}
-					catch (InterruptedException e)
-					{
-					}
-				if (mStop)
-					{
-					mRunningMainLoop = false;
-					return;
-					}
-				}
-			}
-		};
 	
-	private String IntToHex2(int Value)
-		{
-		char HEX2[] = {Character.forDigit((Value >> 4) & 0x0F, 16),Character.forDigit(Value & 0x0F, 16)};
-		String Hex2Str = new String(HEX2);
-		return Hex2Str;
-		}
 	
-	void setSerialDataToTextView(int disp, byte[] rbuf, int len, String sCr, String sLf)
-		{
-		int tmpbuf;
-		for (int i = 0; i < len; ++i)
-			{
-			if ((mReadLinefeedCode == LINEFEED_CODE_CR) && (rbuf[i] == 0x0D))
-				{
-				mText.append(sCr);
-				mText.append(BR);
-				}
-			else if ((mReadLinefeedCode == LINEFEED_CODE_LF) && (rbuf[i] == 0x0A))
-				{
-				mText.append(sLf);
-				mText.append(BR);
-				}
-			else if ((mReadLinefeedCode == LINEFEED_CODE_CRLF) && (rbuf[i] == 0x0D) && (rbuf[i + 1] == 0x0A))
-				{
-				mText.append(sCr);
-				if (disp != DISP_CHAR)
-					{
-					mText.append(" ");
-					}
-				mText.append(sLf);
-				mText.append(BR);
-				++i;
-				}
-			else if ((mReadLinefeedCode == LINEFEED_CODE_CRLF) && (rbuf[i] == 0x0D))
-				{
-				mText.append(sCr);
-				lastDataIs0x0D = true;
-				}
-			else if (lastDataIs0x0D && (rbuf[0] == 0x0A))
-				{
-				if (disp != DISP_CHAR)
-					{
-					mText.append(" ");
-					}
-				mText.append(sLf);
-				mText.append(BR);
-				lastDataIs0x0D = false;
-				}
-			else if (lastDataIs0x0D && (i != 0))
-				{
-				lastDataIs0x0D = false;
-				--i;
-				}
-			else
-				{
-				switch (disp)
-					{
-					case DISP_CHAR:
-					mText.append((char) rbuf[i]);
-					break;
+	
+	
+	
 
-					case DISP_DEC:
-					tmpbuf = rbuf[i];
-					if (tmpbuf < 0)
-						{
-						tmpbuf += 256;
-						}
-					mText.append(String.format("%1$03d", tmpbuf));
-					mText.append(" ");
-					break;
+	private void startService(Class<?> service, ServiceConnection serviceConnection)
+		{
+		if (!AppService.SERVICE_CONNECTED)
+    		{
+			Intent startService = new Intent(this, service);
+			startService(startService);
+    		}
+		Intent bindingIntent = new Intent(this, service);
+		bindService(bindingIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+		}
 
-					case DISP_HEX:
-					mText.append(IntToHex2((int) rbuf[i]));
-					mText.append(" ");
-					break;
+	private void sendMessage(String msg)
+		{
+		Pattern pattern = Pattern.compile("\n$");
+		Matcher matcher = pattern.matcher(msg);
+		String strResult = matcher.replaceAll("");
+		try
+    		{
+			usbService.write(strResult.getBytes("UTF-8"));
+    		}
+    		catch (Exception e)
+    		{
+    		}
+		}
 
-					default:
-					break;
-					}
-				}
-			}
-		}
-	
-	void loadDefaultSettingValues()
+	private void addReceivedData(String data)
 		{
-		SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(this);
-		String res = pref.getString("display_list", Integer.toString(DISP_CHAR));
-		mDisplayType = Integer.valueOf(res);
-		res = pref.getString("fontsize_list", Integer.toString(12));
-		res = pref.getString("readlinefeedcode_list", Integer.toString(LINEFEED_CODE_CRLF));
-		mReadLinefeedCode = Integer.valueOf(res);
-		res = pref.getString("databits_list", Integer.toString(FTDriver.FTDI_SET_DATA_BITS_8));
-		mDataBits = Integer.valueOf(res);
-		mSerial.setSerialPropertyDataBit(mDataBits, FTDriver.CH_A);
-		res = pref.getString("parity_list", Integer.toString(FTDriver.FTDI_SET_DATA_PARITY_NONE));
-		mParity = Integer.valueOf(res) << 8;
-		mSerial.setSerialPropertyParity(mParity, FTDriver.CH_A);
-		res = pref.getString("stopbits_list", Integer.toString(FTDriver.FTDI_SET_DATA_STOP_BITS_1));
-		mStopBits = Integer.valueOf(res) << 11;
-		mSerial.setSerialPropertyStopBits(mStopBits, FTDriver.CH_A);
-		res = pref.getString("flowcontrol_list", Integer.toString(FTDriver.FTDI_SET_FLOW_CTRL_NONE));
-		mFlowControl = Integer.valueOf(res) << 8;
-		mSerial.setFlowControl(FTDriver.CH_A, mFlowControl);
-		res = pref.getString("break_list", Integer.toString(FTDriver.FTDI_SET_NOBREAK));
-		mBreak = Integer.valueOf(res) << 14;
-		mSerial.setSerialPropertyBreak(mBreak, FTDriver.CH_A);
-		mSerial.setSerialPropertyToChip(FTDriver.CH_A);
-		}
-	
-	int loadDefaultBaudrate()
-		{
-		int res = FTDriver.BAUD9600;
-    	String value = readFile("baudrate.cfg");
-    	if (value=="_")
-    		{
-    		writeFile("baudrate.cfg","9600");
-    		mBaudrate = FTDriver.BAUD9600;
-    		res = FTDriver.BAUD9600;
-    		}
-    	if (value.contains("9600"))
-    		{
-        	mBaudrate = FTDriver.BAUD9600;
-    		res = FTDriver.BAUD9600;
-    		}
-    		else
-    		{
-    		if (value.contains("57600"))
-    			{
-            	mBaudrate = FTDriver.BAUD57600;
-        		res = FTDriver.BAUD57600;
-    			}
-    			else
-    			{
-   	    		if (value.contains("115200"))
-        			{
-   	            	mBaudrate = FTDriver.BAUD115200;
-   	            	res =  FTDriver.BAUD115200;
-        			}
-   	    			else
-   	    			{
- 	    	        mBaudrate = FTDriver.BAUD9600;
- 	    	        res = FTDriver.BAUD9600;
-   	    			}
-    			}
-    		}
-		return res;
-		}
-	
-	private void openUsbSerial()
-		{
-		if (!mSerial.isConnected())
+		receiverTextbox.append(data);
+		receiverScrollbar.postDelayed(new Runnable()
 			{
-			mBaudrate = loadDefaultBaudrate();
-			if (!mSerial.begin(mBaudrate))
+		    @Override public void run()
+		    	{
+		    	receiverScrollbar.fullScroll(ScrollView.FOCUS_DOWN);
+		        }
+		    }, 100);
+		}
+
+	private static class MyHandler extends Handler
+		{
+		private final WeakReference<Main> mActivity;
+
+		public MyHandler(Main activity)
+    		{
+			mActivity = new WeakReference<>(activity);
+    		}
+
+		@Override public void handleMessage(Message msg)
+    		{
+			switch (msg.what)
 				{
-				messageStatus(getResources().getString(R.string.textCantConnect));
-				return;
+				case AppService.MESSAGE_FROM_SERIAL_PORT:
+				String data = (String) msg.obj;
+				if (data != null)
+            		{
+					mActivity.get().addReceivedData(data);
+            		}
+				break;
+            
+				default:
+				break;
 				}
-				else
-				{
-				messageStatus(getResources().getString(R.string.textConnected));
-				}
-			}
-		if (!mRunningMainLoop)
-			{
-			mainloop();
-			}
+    		}
 		}
 	
-	private void closeUsbSerial()
-		{
-		detachedUi();
-		mStop = true;
-		mSerial.end();
-		}
+    private final ServiceConnection usbConnection = new ServiceConnection()
+    	{
+    	@Override public void onServiceConnected(ComponentName arg0, IBinder arg1)
+    		{
+    		usbService = ((AppService.UsbBinder) arg1).getService();
+    		}
+
+    	@Override public void onServiceDisconnected(ComponentName arg0)
+    		{
+    		usbService = null;
+    		}
+    	};
 	
-	protected void onNewIntent(Intent intent)
+    private final BroadcastReceiver mUsbReceiver = new BroadcastReceiver()
 		{
-		openUsbSerial();
-		};
-		
-	private void detachedUi()
-		{
-		btWrite.setTextColor(Color.LTGRAY);
-		btWrite.setEnabled(false);
-		etWrite.setText("");
-		etWrite.setEnabled(false);
-		connected=false;
-		messageStatus(getResources().getString(R.string.textDisconnected));
-		}
-	
-	public void messageStatus(String a)
-		{
-		Toast.makeText(this, a, Toast.LENGTH_SHORT).show();
-		}
-	
-	BroadcastReceiver mUsbReceiver = new BroadcastReceiver()
-		{
-		public void onReceive(Context context, Intent intent)
-			{
-			String action = intent.getAction();
-			if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action))
-				{
-				if (!mSerial.isConnected())
-					{
-					mBaudrate = loadDefaultBaudrate();
-					mSerial.begin(mBaudrate);
-					loadDefaultSettingValues();
-					}
-				if (!mRunningMainLoop)
-					{
-					mainloop();
-					}
-				}
-				else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action))
-					{
-					mStop = true;
-					detachedUi();
-					mSerial.usbDetached(intent);
-					mSerial.end();
-					}
-				else if (ACTION_USB_PERMISSION.equals(action))
-					{
-					synchronized (this)
-						{
-						if (!mSerial.isConnected())
-							{
-							mBaudrate = loadDefaultBaudrate();
-							mSerial.begin(mBaudrate);
-							loadDefaultSettingValues();
-							}
-						}
-					if (!mRunningMainLoop)
-						{
-						mainloop();
-						}
-					}
-			}
+    	@Override public void onReceive(Context context, Intent intent)
+    		{
+    		switch (intent.getAction())
+        		{
+        		case AppService.ACTION_USB_PERMISSION_GRANTED:
+        		clickInConnect();
+        		break;
+            
+        		case AppService.ACTION_USB_DISCONNECTED:
+        		clickInDisconnect();
+        		break;
+            
+        		default:
+        		break;
+        		}
+    		}
 		};
 	}
