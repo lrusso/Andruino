@@ -18,7 +18,7 @@
     <string name="textBaudRate">Configurar bits por segundo</string>
     <string name="textPrivacy">Política de privacidad</string>
     <string name="textAbout">Acerca de...</string>
-    <string name="textAboutMessage"><![CDATA[<h3>Andruino</h3>Copyright &#169; ANOS<br /><br /><b>www.lrusso.com.ar</b><br /><br />por Leonardo Javier Russo.]]></string>
+    <string name="textAboutMessage"><![CDATA[<h3>APPNAME</h3>Copyright &#169; 2005<br /><br /><b>www.lrusso.com</b><br /><br />por Leonardo Javier Russo.]]></string>
     <string name="textMessage">Mensaje</string>
     <string name="textOk">Aceptar</string>
 	<string name="textSketch">Sketch de Arduino</string>

@@ -475,19 +475,8 @@ public class Main extends Activity
 	
 	public void clickInAbout()
 		{
-		String anos = "";
 		String value = getResources().getString(R.string.textAboutMessage);
-		int lastTwoDigits = Calendar.getInstance().get(Calendar.YEAR) % 100;
-		if (lastTwoDigits<=5)
-			{
-			anos = "2005";
-			}
-			else
-			{
-			anos ="2005 - 20" + String.valueOf(lastTwoDigits).trim();
-			}
-		
-		value = value.replace("ANOS", anos);
+		value = value.replace("APPNAME",getResources().getString(R.string.app_name));
 		
 		TextView msg = new TextView(this);
 		msg.setText(Html.fromHtml(value));

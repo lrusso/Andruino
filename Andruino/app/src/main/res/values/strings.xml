@@ -18,7 +18,7 @@
     <string name="textBaudRate">Set Baud rate</string>
     <string name="textPrivacy">Privacy policy</string>
     <string name="textAbout">About...</string>
-    <string name="textAboutMessage"><![CDATA[<h3>Andruino</h3>Copyright &#169; ANOS<br /><br /><b>www.lrusso.com.ar</b><br /><br />by Leonardo Javier Russo.]]></string>
+    <string name="textAboutMessage"><![CDATA[<h3>APPNAME</h3>Copyright &#169; 2005<br /><br /><b>www.lrusso.com</b><br /><br />by Leonardo Javier Russo.]]></string>
     <string name="textMessage">Message</string>
     <string name="textOk">OK</string>
 	<string name="textSketch">Arduino Sketch</string>
