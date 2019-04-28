@@ -22,6 +22,12 @@
             </intent-filter>
             <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/device_filter" />
         </activity>
+        <activity
+            android:name="Sketch1"
+            android:label="@string/textSketch1"
+            android:theme="@android:style/Theme.Holo.Light"
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout">
+        </activity>
         <service android:name=".AppService" android:enabled="true" />
     </application>
 </manifest>

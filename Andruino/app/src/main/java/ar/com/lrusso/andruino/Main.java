@@ -206,7 +206,7 @@ public class Main extends Activity
 						{
 						clickInCopyText();
 						}
-					else if (item.getTitle().toString().contains(getResources().getString(R.string.textSketch)))
+					else if (item.getTitle().toString().contains(getResources().getString(R.string.textSketch1)))
 						{
 						clickInSketch();
 						}
@@ -441,19 +441,8 @@ public class Main extends Activity
 	
 	private void clickInSketch()
 		{
-		LayoutInflater inflater = LayoutInflater.from(this);
-		View view=inflater.inflate(R.layout.sketch, null);
-
-		AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);  
-		alertDialog.setTitle(getResources().getString(R.string.textSketch));  
-		alertDialog.setView(view);
-		alertDialog.setPositiveButton(getResources().getString(R.string.textOk), new DialogInterface.OnClickListener()
-			{
-			public void onClick(DialogInterface dialog, int whichButton)
-				{
-				}
-			});
-		alertDialog.show();
+		Intent intent = new Intent(this, Sketch1.class);
+		startActivity(intent);
 		}
 
 	public void clickInPrivacy()

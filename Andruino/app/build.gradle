@@ -6,8 +6,8 @@ android {
         applicationId "ar.com.lrusso.andruino"
         minSdkVersion 14
         targetSdkVersion 26
-        versionCode 22
-        versionName "1.9.4.8"
+        versionCode 23
+        versionName "1.9.4.9"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

@@ -4,7 +4,7 @@
 	<item android:id="@+id/clear" android:title="@string/textClear"/>
 	<item android:id="@+id/copy" android:title="@string/textCopy"/>
 	<item android:id="@+id/configbaudrate" android:title="@string/textBaudRate"/>  
-	<item android:id="@+id/example" android:title="@string/textSketch"/>
+	<item android:id="@+id/example" android:title="@string/textSketch1"/>
 	<item android:id="@+id/privacy" android:title="@string/textPrivacy"/>  
 	<item android:id="@+id/about" android:title="@string/textAbout"/>  
 </menu>  
